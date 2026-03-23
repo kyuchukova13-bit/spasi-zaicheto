@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ОПЕРАЦИЯ: СПАСИ ЗАЙЧЕТАТА</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;800&display=swap');
+
+        :root {
+            var(--green): #9CC32A; var(--green-hover): #86A823;
+            var(--pink): #F87FBC; var(--magenta): #D61159;
+            var(--light): #FFF9E5; var(--dark-text): #4A154B;
+            var(--danger): #FF3333;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Fredoka', sans-serif; overflow: hidden;
+            background-color: #FFF9E5; user-select: none;
+            /* Предотвратява зуумване и скролване на мобилни устройства */
+            touch-action: none; 
+        }
+
+        .screen {
+            display: none; width: 100vw; height: 100vh;
+            position: absolute; top: 0; left: 0;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .screen.active { display: flex; }
+
+        /* ЕКРАН ЗА ЗАВЪРТАНЕ (Показва се само при изправен телефон) */
+        #portrait-warning {
+            display: none; background: #D61159; color: white;
+            z-index: 10000; text-align: center; padding: 20px; font-size: 1.5em;
+        }
+        @media screen and (orientation: portrait) {
+            #portrait-warning { display: flex !important; flex-direction: column; justify-content: center; align-items: center; position: fixed; top:0; left:0; width:100%; height:100%;}
+            .screen { display: none !important; }
+        }
+
+        #start-screen { background: url('pic.png') no-repeat center bottom; background-size: cover; }
+        #start-screen .overlay {
+            width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.85);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        .card {
+            background: #FFFFFF; padding: 30px 40px; border-radius: 30px; 
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2); text-align: center; 
+            max-width: 700px; width: 85%; border: 6px solid #F87FBC;
+        }
+
+        h1.egg-title {
+            font-size: 3.5em; margin: 0 0 20px 0; text-transform: uppercase; font-weight: 800; line-height: 1;
+            background: linear-gradient(to right, #D61159, #F87FBC, #9CC32A, #FF8C00, #D61159);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.1); filter: drop-shadow(0px 4px 1px rgba(0,0,0,0.1));
+        }
+        
+        #end-screen h1 { color: #D61159; text-shadow: none; background: transparent; -webkit-background-clip: initial; filter: none;}
+
+        .instructions {
+            text-align: left; font-size: 1.1em; color: #4A154B; background: #FFF9E5; 
+            padding: 20px; border-radius: 15px; margin-bottom: 20px; 
+            border-left: 6px solid #9CC32A; line-height: 1.5; font-weight: 600;
+        }
+        .instructions b { color: #D61159; }
+
+        .author-tag { font-size: 0.9em; color: #4A154B; font-weight: 700; margin-top: 15px; }
+
+        #speed-slider-wrapper {
+            position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+            height: 250px; width: 50px; z-index: 1000; display: flex; flex-direction: column; align-items: center;
+        }
+        #speedRange { appearance: slider-vertical; width: 25px; height: 100%; cursor: pointer; accent-color: #9CC32A; }
+        .slider-label { font-weight: 800; font-size: 0.7em; color: #D61159; margin: 5px 0;}
+
+        .btn-group { display: flex; gap: 15px; justify-content: center; margin-top: 15px; }
+        .btn {
+            background: #9CC32A; color: white; border: none; padding: 12px 30px;
+            font-size: 1.4em; font-weight: 800; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 6px 0 #86A823; transition: 0.1s; text-transform: uppercase;
+        }
+        .btn:active { transform: translateY(6px); box-shadow: 0 0 0 #86A823; }
+        .btn.secondary { background: #F87FBC; box-shadow: 0 6px 0 #d9629f; }
+        .btn.secondary:active { box-shadow: 0 0 0 #d9629f; }
+
+        #game-screen { background: url('pic.png') no-repeat center bottom; background-size: cover; cursor: crosshair; }
+
+        #hud {
+            position: absolute; top: 10px; left: 0; width: 100%; display: flex; 
+            justify-content: space-around; z-index: 100; pointer-events: none;
+        }
+        .hud-box {
+            background: white; border: 4px solid #9CC32A; padding: 5px 20px; 
+            border-radius: 20px; font-size: 1.8em; font-weight: 800; color: #D61159;
+        }
+        .combo-text { font-size: 0.5em; color: #9CC32A; display: block; margin-top: -5px;}
+
+        /* ОБЕКТИТЕ ЗА КЛИКАНЕ */
+        .target {
+            position: absolute; width: 90px; height: 90px; /* Малко по-малки по подразбиране */
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            transform: scale(0); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Улеснява кликането на телефони (разширява зоната на допир невидимо) */
+            padding: 10px; box-sizing: content-box; 
+        }
+        .target.pop { transform: scale(1); }
+        .golden { width: 110px; height: 110px; filter: drop-shadow(0 0 15px gold); animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+
+        .crack-effect { position: absolute; width: 60px; height: 60px; pointer-events: none; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 10 L45 40 L60 50 L30 70 L50 90" stroke="white" stroke-width="6" fill="none"/></svg>'); animation: shatter 0.4s ease-out forwards; z-index: 50; }
+        @keyframes shatter { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+
+        #flash-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 0, 0, 0.4); z-index: 999; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+        .shake { animation: shake 0.4s; color: #FF3333 !important; border-color: #FF3333 !important; }
+        @keyframes shake { 0%,100% {transform: translate(0,0);} 20% {transform: translate(-3px,1px);} 40% {transform: translate(2px,-2px);} 60% {transform: translate(-2px,2px);} 80% {transform: translate(3px,-1px);} }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; font-size: 1em; color: #4A154B; margin-bottom: 15px; }
+        .stat-grid div { background: #FFF9E5; padding: 8px 12px; border-radius: 10px; font-weight: 600; border-left: 4px solid #F87FBC; }
+        .stat-grid b { color: #D61159; font-size: 1.1em;}
+        .final-score { text-align: center; font-size: 1.5em; color: #D61159; font-weight: 800; margin-top: 10px; border-top: 3px dashed #F87FBC; padding-top: 10px;}
+        .motivational { font-size: 1.2em; color: #9CC32A; font-weight: 800; margin-top: 5px; }
+
+        /* АДАПТАЦИЯ ЗА МАЛКИ ТЕЛЕФОНИ (ПЕЙЗАЖЕН РЕЖИМ) */
+        @media screen and (max-height: 500px) {
+            h1.egg-title { font-size: 2.2em; margin-bottom: 10px; }
+            .card { padding: 15px 20px; border-width: 4px; }
+            .instructions { font-size: 0.9em; padding: 10px; margin-bottom: 10px; }
+            .btn { padding: 8px 20px; font-size: 1.2em; }
+            #speed-slider-wrapper { height: 180px; transform: scale(0.8) translateY(-50%); right: 0; }
+            .target { width: 70px; height: 70px; }
+            .golden { width: 85px; height: 85px; }
+            .hud-box { font-size: 1.3em; padding: 5px 15px; border-width: 3px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="portrait-warning">
+    <h2>📱 Опа!</h2>
+    <p>Моля, завърти телефона си хоризонтално (настрани), за да видиш цялата поляна и да започнеш мисията!</p>
+</div>
+
+<div id="start-screen" class="screen active">
+    <div class="overlay">
+        <h1 class="egg-title">Операция:<br>Спаси зайчетата!</h1>
+        <div class="card">
+            <div class="instructions">
+                🥚 Удряй бързо <b>яйцата</b> за точки.<br>
+                🐰 <span style="color:#FF3333">НЕ докосвай зайчетата!</span> Те са малки и ги боли - губиш 5 точки.<br>
+                🔥 Улучи 5 яйца поред без грешка за <b>СУПЕР СИЛА</b> (удвоява точките).<br>
+                🌟 Гледай за <b>Златното яйце</b> накрая - носи <b>15 точки</b>!
+            </div>
+            <button class="btn" onclick="startGame()">ЗАПОЧНИ МИСИЯТА</button>
+            <div class="author-tag">Автор:Дочка Кючукова</div>
+        </div>
+        
+        <div id="speed-slider-wrapper">
+            <span class="slider-label">БЪРЗО</span>
+            <input type="range" id="speedRange" min="500" max="2500" step="100" value="1300" style="direction: rtl;">
+            <span class="slider-label">БАВНО</span>
+        </div>
+    </div>
+</div>
+
+<div id="game-screen" class="screen">
+    <div id="flash-overlay"></div>
+    <div id="hud">
+        <div class="hud-box" id="score-box">
+            🥚 <span id="score">0</span>
+            <span class="combo-text" id="combo-display">Супер Сила: 0</span>
+        </div>
+        <div class="hud-box">⏱️ <span id="timer">60</span></div>
+    </div>
+    <div id="game-area-full"></div>
+</div>
+
+<div id="end-screen" class="screen">
+    <div class="card">
+        <h1 style="font-size: 2.5em; margin-bottom: 10px;">МИСИЯТА ПРИКЛЮЧИ!</h1>
+        <div id="stats-summary" class="stat-grid"></div>
+        <div id="final-message" class="final-score"></div>
+        <div id="motivational-message" class="motivational"></div>
+        <div class="btn-group">
+            <button class="btn" onclick="startGame()">НОВА ИГРА</button>
+            <button class="btn secondary" onclick="closeGame()">КРАЙ</button>
+        </div>
+    </div>
+</div>
+
+<div id="goodbye-screen" class="screen">
+    <div class="card">
+        <h1>БЛАГОДАРИМ ЗА ИГРАТА!</h1>
+        <p style="font-size: 1.3em; color: #4A154B; font-weight: 600;">До нови срещи на поляната!</p>
+        <button class="btn" onclick="location.reload()" style="margin-top: 15px;">ВЪРНИ СЕ В МЕНЮТО</button>
+    </div>
+</div>
+
+<script>
+    const eggImages = ['1.png', '2.png', '3.png', '4.png'];
+    const bunnyImages = ['11.png', '12.png'];
+    const goldenEggImage = 'gold.png'; 
+    
+    let score = 0; let time = 60; let active = false;
+    let combo = 0; let maxCombo = 0;
+    let spawnTimeout; let timerInt; let goldenSpawned = false;
+    let stats = { totalEggs: 0, hitEggs: 0, totalBunnies: 0, hitBunnies: 0 };
+    
+    let audioCtx;
+    const bunnyCrySound = new Audio('2.mp3'); 
+    
+    function initAudio() { 
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
+        bunnyCrySound.play().then(() => { bunnyCrySound.pause(); bunnyCrySound.currentTime = 0; }).catch(() => {});
+    }
+
+    function playBeep(freq, type) {
+        if(!audioCtx) return;
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type = type; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function updateScoreDisplay() {
+        document.getElementById('score').innerText = score;
+        const comboDisp = document.getElementById('combo-display');
+        comboDisp.innerText = combo >= 5 ? `🔥 СУПЕР СИЛА x2! (${combo})` : `Успешни: ${combo}`;
+        comboDisp.style.color = combo >= 5 ? '#D61159' : '#9CC32A';
+    }
+
+    function triggerMistake() {
+        bunnyCrySound.currentTime = 0; bunnyCrySound.play();
+        const flash = document.getElementById('flash-overlay');
+        const scoreBox = document.getElementById('score-box');
+        flash.style.opacity = '1'; scoreBox.classList.add('shake');
+        
+        // Вибрация на телефона (ако устройството поддържа)
+        if (navigator.vibrate) navigator.vibrate(200);
+
+        setTimeout(() => flash.style.opacity = '0', 200);
+        setTimeout(() => scoreBox.classList.remove('shake'), 400);
+    }
+
+    function startGame() {
+        initAudio();
+        score = 0; time = 60; combo = 0; maxCombo = 0; goldenSpawned = false;
+        stats = { totalEggs: 0, hitEggs: 0, totalBunnies: 0, hitBunnies: 0 };
+        updateScoreDisplay(); document.getElementById('timer').innerText = time;
+        document.getElementById('game-area-full').innerHTML = ''; 
+        switchScreen('game-screen'); active = true;
+
+        timerInt = setInterval(() => {
+            time--; document.getElementById('timer').innerText = time;
+            if(time <= 8 && time > 2 && !goldenSpawned) { spawnTarget('golden'); goldenSpawned = true; }
+            if(time <= 0) { end(); }
+        }, 1000);
+        spawnLoop();
+    }
+
+    function spawnLoop() {
+        if(!active) return;
+        const type = Math.random() > 0.25 ? 'egg' : 'bunny';
+        spawnTarget(type);
+
+        let baseSpeed = parseInt(document.getElementById('speedRange').value);
+        let currentSpeed = baseSpeed - ((60 - time) * 12); 
+        if (time <= 15) currentSpeed = currentSpeed * 0.7; 
+        if (currentSpeed < 350) currentSpeed = 350; 
+        spawnTimeout = setTimeout(spawnLoop, currentSpeed);
+    }
+
+    function spawnTarget(type) {
+        const el = document.createElement('div');
+        el.className = 'target';
+        
+        // Държим ги далеч от плъзгача вдясно и от броячите горе
+        const randomX = Math.floor(Math.random() * 70) + 10; 
+        const randomY = Math.floor(Math.random() * 40) + 40; 
+        
+        el.style.left = randomX + 'vw'; el.style.top = randomY + 'vh';
+        
+        let isBunny = false; let isGolden = false;
+
+        if (type === 'egg') {
+            stats.totalEggs++; el.style.backgroundImage = `url('${eggImages[Math.floor(Math.random() * eggImages.length)]}')`;
+        } else if (type === 'bunny') {
+            stats.totalBunnies++; isBunny = true; el.style.backgroundImage = `url('${bunnyImages[Math.floor(Math.random() * bunnyImages.length)]}')`;
+        } else if (type === 'golden') {
+            stats.totalEggs++; isGolden = true; el.style.backgroundImage = `url('${goldenEggImage}')`; el.classList.add('golden');
+        }
+        
+        document.getElementById('game-area-full').appendChild(el);
+        setTimeout(() => el.classList.add('pop'), 50);
+
+        let hit = false;
+        
+        // УНИВЕРСАЛНА ФУНКЦИЯ ЗА КЛИК ИЛИ ДОКОСВАНЕ
+        const handleHit = (e) => {
+            if(e.type === 'touchstart') e.preventDefault(); // Спира двойния клик на телефони
+            if(hit) return; hit = true;
+            
+            // Взимаме координатите на допира за визуалния ефект
+            let clientX = e.clientX; let clientY = e.clientY;
+            if(e.type === 'touchstart' && e.changedTouches) {
+                clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
+            }
+
+            if(isBunny) {
+                stats.hitBunnies++; score = Math.max(0, score - 5); combo = 0; triggerMistake();
+            } else {
+                stats.hitEggs++; combo++; if(combo > maxCombo) maxCombo = combo;
+                let pointsEarned = isGolden ? 15 : 1;
+                if(combo >= 5 && !isGolden) pointsEarned = 2; 
+                score += pointsEarned; playBeep(isGolden ? 1200 : 800, 'sine');
+                
+                const crack = document.createElement('div'); crack.className = 'crack-effect';
+                crack.style.left = (clientX - 30) + 'px'; crack.style.top = (clientY - 30) + 'px';
+                document.getElementById('game-area-full').appendChild(crack); setTimeout(() => crack.remove(), 400);
+            }
+            
+            updateScoreDisplay(); el.classList.remove('pop'); setTimeout(() => el.remove(), 200);
+        };
+
+        // Закачаме слушатели и за мишка, и за пръст
+        el.addEventListener('mousedown', handleHit);
+        el.addEventListener('touchstart', handleHit, {passive: false});
+
+        const stayTime = isGolden ? 900 : (time <= 15 ? 1000 : 1400);
+        setTimeout(() => { 
+            if(!hit && el.parentElement) { 
+                if(!isBunny && !isGolden) combo = 0; 
+                updateScoreDisplay(); el.classList.remove('pop'); setTimeout(() => el.remove(), 200); 
+            } 
+        }, stayTime);
+    }
+
+    function end() {
+        active = false; clearInterval(timerInt); clearTimeout(spawnTimeout);
+        let missedEggs = stats.totalEggs - stats.hitEggs; let savedBunnies = stats.totalBunnies - stats.hitBunnies;
+        let totalActions = stats.totalEggs + stats.totalBunnies; let successfulActions = stats.hitEggs + savedBunnies;
+        let concentration = totalActions > 0 ? Math.round((successfulActions / totalActions) * 100) : 0;
+        
+        document.getElementById('stats-summary').innerHTML = `
+            <div>✅ Счупени: <b>${stats.hitEggs}</b></div><div>❌ Изпуснати: <b>${missedEggs}</b></div>
+            <div>❤️ Спасени зайци: <b>${savedBunnies}</b></div><div>⚠️ Ударени зайци: <b>${stats.hitBunnies}</b></div>
+            <div>🔥 Макс. сила: <b>${maxCombo}</b></div><div>🎯 Концентрация: <b>${concentration}%</b></div>
+        `;
+        document.getElementById('final-message').innerHTML = `🏆 ОБЩ РЕЗУЛТАТ: ${score} ТОЧКИ`;
+        
+        let msg = "";
+        if(concentration >= 90) msg = "🌟 Невероятен фокус! Ти си майстор!";
+        else if(concentration >= 70) msg = "👍 Чудесна работа! Спаси много зайчета!";
+        else msg = "💪 Добра тренировка! Следващият път ще си по-бърз!";
+        document.getElementById('motivational-message').innerText = msg;
+        switchScreen('end-screen');
+    }
+
+    function closeGame() { switchScreen('goodbye-screen'); }
+</script>
+</body>
+</html>
